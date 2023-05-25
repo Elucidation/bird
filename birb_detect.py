@@ -28,19 +28,14 @@ if tf.test.gpu_device_name():
     print(f'GPU device available: {tf.test.gpu_device_name()}')
 
 
-# model_display_name = 'SSD MobileNet v2 320x320'
-# model_handle = 'https://tfhub.dev/tensorflow/ssd_mobilenet_v2/2'
-
-model_display_name = 'SSD MobileNet V2 FPNLite 320x320'
+# model_handle = 'https://tfhub.dev/tensorflow/ssd_mobilenet_v2/2' # slow
+# model_handle = 'https://tfhub.dev/tensorflow/ssd_mobilenet_v2/fpnlite_640x640/1'  # slow
 model_handle = 'https://tfhub.dev/tensorflow/ssd_mobilenet_v2/fpnlite_320x320/1'
-
-# model_display_name = 'SSD MobileNet V2 FPNLite 640x640'
-# model_handle = 'https://tfhub.dev/tensorflow/ssd_mobilenet_v2/fpnlite_640x640/1'
+# model_handle = 'https://tfhub.dev/google/openimages_v4/ssd/mobilenet_v2/1'
 
 
 print('\n------\n')
-print(f'Selected model: {model_display_name}')
-print(f'Model Handle at TensorFlow Hub: {model_handle}')
+print(f'Selected Model Handle at TensorFlow Hub: {model_handle}')
 
 print('loading model...')
 model_start_time = time.perf_counter()
@@ -87,27 +82,30 @@ def search_image(img_path):
     print(f"Inference time:  {end_time-start_time:.2f} s")
     result = {key: value.numpy() for key, value in result.items()}
     # print(
-    #     f'Getting result took {time.perf_counter() - prog_start_time:.2f} seconds total')
-
-    # result_json = json.dumps({key: value.tolist()
-    #                           for key, value in result.items()})
-    # with open('result.json', 'w') as f:
-    #     print(result_json, file=f)
+    #     f'Getting result took {time.perf_counter() - prog_start_time:.2f} seconds total')    
 
     labels = np.array([label_map[str(int(cat_id))]
               for cat_id in result['detection_classes'][0]])
-    scores = result['detection_scores'][0]
-    return labels, scores
+    result['detection_class_names'] = labels
+    return result
 
 
-camera_img_paths = glob.glob('2023-05-24/*.jpg')
+camera_img_paths = glob.glob('birb_camera_images/*.jpg')
 print('----')
 for idx, img_path in enumerate(camera_img_paths):
     print(f'{idx+1}/{len(camera_img_paths)} - Searching {img_path}')
-    labels, scores = search_image(img_path)
+    result, labels, scores = search_image(img_path)
     # print(list(zip(labels, scores)))
-    if 'bird' in labels[scores > 0.2]:
+    if 'bird' in result['detection_class_names'][result['detection_class_names'][0] > 0.2]:
         print(f'{idx+1}/{len(camera_img_paths)} - Found a bird in {img_path}')
         shutil.copy(img_path, f'bird_only_images/{os.path.basename(img_path)}')
+        result_json = json.dumps({key: value.tolist() for key, value in result.items()},  indent=2, sort_keys=True)
+        result_json_path = f'bird_only_images/result_{os.path.splitext(os.path.basename(img_path))[0]}.json'
+        with open(result_json_path, 'w', encoding='utf8') as f:
+            print(result_json, file=f)
+    else:
+        print(f'{idx+1}/{len(camera_img_paths)} - No bird in {img_path}')
+    
+
     print('----')
 print('Done')

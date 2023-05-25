@@ -161,4 +161,4 @@ cython_debug/
 
 *.jpg
 *.thumb
-result.json
+*.json
