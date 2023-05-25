@@ -86,8 +86,8 @@ def search_image(img_path):
     print('Finished inference in ')
     print(f"Inference time:  {end_time-start_time:.2f} s")
     result = {key: value.numpy() for key, value in result.items()}
-    print(
-        f'Getting result took {time.perf_counter() - prog_start_time:.2f} seconds total')
+    # print(
+    #     f'Getting result took {time.perf_counter() - prog_start_time:.2f} seconds total')
 
     # result_json = json.dumps({key: value.tolist()
     #                           for key, value in result.items()})
@@ -100,13 +100,13 @@ def search_image(img_path):
     return labels, scores
 
 
-camera_img_paths = glob.glob('birb_camera_images/*.jpg')
+camera_img_paths = glob.glob('2023-05-24/*.jpg')
 print('----')
 for idx, img_path in enumerate(camera_img_paths):
     print(f'{idx+1}/{len(camera_img_paths)} - Searching {img_path}')
     labels, scores = search_image(img_path)
     # print(list(zip(labels, scores)))
-    if 'bird' in labels[scores > 0.1]:
+    if 'bird' in labels[scores > 0.2]:
         print(f'{idx+1}/{len(camera_img_paths)} - Found a bird in {img_path}')
         shutil.copy(img_path, f'bird_only_images/{os.path.basename(img_path)}')
     print('----')
