@@ -4,13 +4,14 @@ from PIL import Image
 import glob
 import json
 import time
+import os
+import shutil
 prog_start_time = time.perf_counter()
 
 
 with open('coco_labels.json', 'r', encoding='utf8') as f:
     label_map = json.loads(f.read())
 
-# import os
 # os.environ["TFHUB_CACHE_DIR"] = "gs://samop-tf-cache/tfhub-modules-cache"
 import tensorflow_hub as hub
 import tensorflow as tf
@@ -93,19 +94,20 @@ def search_image(img_path):
     # with open('result.json', 'w') as f:
     #     print(result_json, file=f)
 
-    labels = [label_map[str(int(cat_id))]
-              for cat_id in result['detection_classes'][0]]
+    labels = np.array([label_map[str(int(cat_id))]
+              for cat_id in result['detection_classes'][0]])
     scores = result['detection_scores'][0]
     return labels, scores
 
 
-# img_path = 'Birbcamera_14-42-57.jpg'
 camera_img_paths = glob.glob('birb_camera_images/*.jpg')
 print('----')
 for idx, img_path in enumerate(camera_img_paths):
     print(f'{idx+1}/{len(camera_img_paths)} - Searching {img_path}')
     labels, scores = search_image(img_path)
-    if 'bird' in labels:
-        print(f'Found a bird in {img_path}')
+    # print(list(zip(labels, scores)))
+    if 'bird' in labels[scores > 0.1]:
+        print(f'{idx+1}/{len(camera_img_paths)} - Found a bird in {img_path}')
+        shutil.copy(img_path, f'bird_only_images/{os.path.basename(img_path)}')
     print('----')
 print('Done')
