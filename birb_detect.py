@@ -100,7 +100,7 @@ def search_image(img_path):
 
 
 # img_path = 'Birbcamera_14-42-57.jpg'
-camera_img_paths = glob.glob('Birb*.jpg')
+camera_img_paths = glob.glob('birb_camera_images/*.jpg')
 print('----')
 for idx, img_path in enumerate(camera_img_paths):
     print(f'{idx+1}/{len(camera_img_paths)} - Searching {img_path}')
