@@ -162,3 +162,5 @@ cython_debug/
 *.jpg
 *.thumb
 *.json
+processed_paths.txt
+processed_bad_paths.txt

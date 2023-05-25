@@ -1,6 +1,6 @@
 import numpy as np
 from six import BytesIO
-from PIL import Image
+from PIL import Image, ImageOps
 import glob
 import json
 import time
@@ -17,7 +17,6 @@ import tensorflow_hub as hub
 import tensorflow as tf
 
 
-# Print Tensorflow version
 print('\n------\n')
 print(
     f'Program took {time.perf_counter() - prog_start_time:.2f} seconds to import TF & Hub')
@@ -28,10 +27,7 @@ if tf.test.gpu_device_name():
     print(f'GPU device available: {tf.test.gpu_device_name()}')
 
 
-# model_handle = 'https://tfhub.dev/tensorflow/ssd_mobilenet_v2/2' # slow
-# model_handle = 'https://tfhub.dev/tensorflow/ssd_mobilenet_v2/fpnlite_640x640/1'  # slow
-model_handle = 'https://tfhub.dev/tensorflow/ssd_mobilenet_v2/fpnlite_320x320/1'
-# model_handle = 'https://tfhub.dev/google/openimages_v4/ssd/mobilenet_v2/1'
+model_handle = 'https://tfhub.dev/google/openimages_v4/ssd/mobilenet_v2/1'
 
 
 print('\n------\n')
@@ -39,10 +35,11 @@ print(f'Selected Model Handle at TensorFlow Hub: {model_handle}')
 
 print('loading model...')
 model_start_time = time.perf_counter()
-hub_model = hub.load(model_handle)
+hub_model = hub.load(model_handle).signatures['default']
 print('Model cached at :', hub.resolve(model_handle))
 print(f"Model loaded, took time: {time.perf_counter()-model_start_time:2f} s")
 print('\n------\n')
+
 
 
 def load_image_into_numpy_array(path):
@@ -66,46 +63,94 @@ def load_image_into_numpy_array(path):
     return np.array(image.getdata()).reshape(
         (1, im_height, im_width, 3)).astype(np.uint8)
 
+def load_img(path):
+    img = tf.io.read_file(path)
+    img = tf.image.decode_jpeg(img, channels=3)
+    return img
 
+def open_and_resize_image(path, new_width=256, new_height=256):
+  pil_image = Image.open(path)
+  pil_image = ImageOps.fit(pil_image, (new_width, new_height), Image.ANTIALIAS)
+  pil_image_rgb = pil_image.convert("RGB")
+  img = tf.convert_to_tensor(pil_image_rgb)
+  return img
 
 def search_image(img_path):
     """Searches an image and returns labels and scores"""
-    print(f'Loading image {img_path}')
-    img_np = load_image_into_numpy_array(img_path)
+    # print(f'Loading image {img_path}')
+    # img_np = load_image_into_numpy_array(img_path)
+    img = load_img(img_path)
+    # img = open_and_resize_image(img_path, 640, 480)
+    img_tf  = tf.image.convert_image_dtype(img, tf.float32)[tf.newaxis, ...]
     print(f'Doing inference on {img_path}')
 
     start_time = time.perf_counter()
-    result = hub_model(img_np)
+    result = hub_model(img_tf)
     end_time = time.perf_counter()
-
-    print('Finished inference in ')
     print(f"Inference time:  {end_time-start_time:.2f} s")
-    result = {key: value.numpy() for key, value in result.items()}
-    # print(
-    #     f'Getting result took {time.perf_counter() - prog_start_time:.2f} seconds total')    
 
-    labels = np.array([label_map[str(int(cat_id))]
-              for cat_id in result['detection_classes'][0]])
-    result['detection_class_names'] = labels
+    del result['detection_class_labels']
+    del result['detection_class_names']
+    # Keep dict_keys('detection_class_entities', 'detection_boxes', 'detection_scores'])
+    result = {key: value.numpy() for key, value in result.items()}
+
+    result['detection_class_entities'] = np.array([entry.decode('utf-8') for entry in result['detection_class_entities']])
+
+    is_good_score = result['detection_scores']>0.1
+    is_animal = result['detection_class_entities'] == 'Animal'
+    is_bird = result['detection_class_entities'] == 'Bird'
+    is_raven = result['detection_class_entities'] == 'Raven'
+    
+    valid = is_good_score & (is_animal | is_bird | is_raven)    
+    result['valid'] = valid
     return result
 
 
-camera_img_paths = glob.glob('birb_camera_images/*.jpg')
+# camera_img_paths = glob.glob('birb_camera_images/*.jpg')
+paths = glob.glob('E:/birbcam/2023-05-24/*.jpg')
 print('----')
-for idx, img_path in enumerate(camera_img_paths):
-    print(f'{idx+1}/{len(camera_img_paths)} - Searching {img_path}')
-    result, labels, scores = search_image(img_path)
-    # print(list(zip(labels, scores)))
-    if 'bird' in result['detection_class_names'][result['detection_class_names'][0] > 0.2]:
-        print(f'{idx+1}/{len(camera_img_paths)} - Found a bird in {img_path}')
+if not os.path.exists('processed_paths.txt'):
+    processed = set()
+else:
+    with open('processed_paths.txt', 'r', encoding='utf-8') as f:
+        processed = set(f.read().splitlines())
+if not os.path.exists('processed_bad_paths.txt'):
+    bad_paths = set()
+else:
+    with open('processed_bad_paths.txt', 'r', encoding='utf-8') as f:
+        bad_paths = set(f.read().splitlines())
+
+t_start = time.perf_counter()
+for idx, img_path in enumerate(paths):
+    if img_path in processed or img_path in bad_paths:
+        continue
+    t = time.perf_counter()
+    print(f'{idx+1}/{len(paths)} - Searching {img_path}')
+    try:
+        result = search_image(img_path)
+    except tf.errors.InvalidArgumentError:
+        print(f'{t - t_start:.2f}s - {idx}/{len(paths)} - Error loading image on {img_path}, skipping')
+        bad_paths.add(img_path)
+        with open('processed_bad_paths.txt', 'a', encoding='utf-8') as f:
+            print(img_path, file=f)
+        continue
+    except KeyboardInterrupt:
+        print(f'{t - t_start:.2f}s - {idx}/{len(paths)} - Keyboard interrupt, stopping')
+        break
+    if any(result['valid']):
+        num_valid = sum(result['valid'])
+        print(f'{idx+1}/{len(paths)} - Found {num_valid} creatures in {img_path}')
         shutil.copy(img_path, f'bird_only_images/{os.path.basename(img_path)}')
         result_json = json.dumps({key: value.tolist() for key, value in result.items()},  indent=2, sort_keys=True)
-        result_json_path = f'bird_only_images/result_{os.path.splitext(os.path.basename(img_path))[0]}.json'
-        with open(result_json_path, 'w', encoding='utf8') as f:
+        result_json_path = f'bird_only_images/result_2023_05_24_{os.path.splitext(os.path.basename(img_path))[0]}.json'
+        with open(result_json_path, 'w', encoding='utf-8') as f:
             print(result_json, file=f)
     else:
-        print(f'{idx+1}/{len(camera_img_paths)} - No bird in {img_path}')
-    
-
+        print(f'{idx+1}/{len(paths)} - No bird in {img_path}')
+    print(set(result['detection_class_entities']))
     print('----')
+    
+    processed.add(img_path)
+    with open('processed_paths.txt', 'a') as f:
+        print(img_path, file=f)
 print('Done')
