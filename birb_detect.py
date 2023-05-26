@@ -69,11 +69,11 @@ def load_img(path):
     return img
 
 def open_and_resize_image(path, new_width=256, new_height=256):
-  pil_image = Image.open(path)
-  pil_image = ImageOps.fit(pil_image, (new_width, new_height), Image.ANTIALIAS)
-  pil_image_rgb = pil_image.convert("RGB")
-  img = tf.convert_to_tensor(pil_image_rgb)
-  return img
+    pil_image = Image.open(path)
+    pil_image = ImageOps.fit(pil_image, (new_width, new_height), Image.ANTIALIAS)
+    pil_image_rgb = pil_image.convert("RGB")
+    img = tf.convert_to_tensor(pil_image_rgb)
+    return img
 
 def search_image(img_path):
     """Searches an image and returns labels and scores"""
@@ -82,12 +82,12 @@ def search_image(img_path):
     img = load_img(img_path)
     # img = open_and_resize_image(img_path, 640, 480)
     img_tf  = tf.image.convert_image_dtype(img, tf.float32)[tf.newaxis, ...]
-    print(f'Doing inference on {img_path}')
+    # print(f'Doing inference on {img_path}')
 
     start_time = time.perf_counter()
     result = hub_model(img_tf)
     end_time = time.perf_counter()
-    print(f"Inference time:  {end_time-start_time:.2f} s")
+    # print(f"Inference time:  {end_time-start_time:.2f} s")
 
     del result['detection_class_labels']
     del result['detection_class_names']
@@ -107,7 +107,12 @@ def search_image(img_path):
 
 
 # camera_img_paths = glob.glob('birb_camera_images/*.jpg')
-paths = glob.glob('E:/birbcam/2023-05-24/*.jpg')
+output_dir = 'bird_only_images'
+input_subdir = '2023-05-dev'
+output_fullpath = os.path.join(output_dir, input_subdir)
+if not os.path.exists(output_fullpath):
+    os.makedirs(output_fullpath)
+paths = glob.glob(f'E:/birbcam/{input_subdir}/*.jpg')
 print('----')
 if not os.path.exists('processed_paths.txt'):
     processed = set()
@@ -125,32 +130,32 @@ for idx, img_path in enumerate(paths):
     if img_path in processed or img_path in bad_paths:
         continue
     t = time.perf_counter()
-    print(f'{idx+1}/{len(paths)} - Searching {img_path}')
+    t_str = f'{t - t_start:.2f}s - {idx}/{len(paths)}'
+    print(f'{t_str} - {idx+1}/{len(paths)} - Searching {img_path}')
     try:
         result = search_image(img_path)
     except tf.errors.InvalidArgumentError:
-        print(f'{t - t_start:.2f}s - {idx}/{len(paths)} - Error loading image on {img_path}, skipping')
+        print(f'{t_str} - Error loading image on {img_path}, skipping')
         bad_paths.add(img_path)
         with open('processed_bad_paths.txt', 'a', encoding='utf-8') as f:
             print(img_path, file=f)
         continue
     except KeyboardInterrupt:
-        print(f'{t - t_start:.2f}s - {idx}/{len(paths)} - Keyboard interrupt, stopping')
+        print(f'{t_str} - Keyboard interrupt, stopping')
         break
+    
     if any(result['valid']):
         num_valid = sum(result['valid'])
         print(f'{idx+1}/{len(paths)} - Found {num_valid} creatures in {img_path}')
-        shutil.copy(img_path, f'bird_only_images/{os.path.basename(img_path)}')
+        output_img_path = os.path.join(output_fullpath, os.path.basename(img_path))
+        shutil.copy(img_path, output_img_path)
         result_json = json.dumps({key: value.tolist() for key, value in result.items()},  indent=2, sort_keys=True)
-        result_json_path = f'bird_only_images/result_2023_05_24_{os.path.splitext(os.path.basename(img_path))[0]}.json'
+        result_json_path = os.path.join(output_fullpath, f'result_{os.path.splitext(os.path.basename(img_path))[0]}.json')
         with open(result_json_path, 'w', encoding='utf-8') as f:
             print(result_json, file=f)
-    else:
-        print(f'{idx+1}/{len(paths)} - No bird in {img_path}')
-    print(set(result['detection_class_entities']))
-    print('----')
+        print('----')
     
     processed.add(img_path)
-    with open('processed_paths.txt', 'a') as f:
+    with open('processed_paths.txt', 'a', encoding='utf-8') as f:
         print(img_path, file=f)
 print('Done')
