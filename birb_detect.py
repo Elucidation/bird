@@ -12,6 +12,35 @@ prog_start_time = time.perf_counter()
 with open('coco_labels.json', 'r', encoding='utf8') as f:
     label_map = json.loads(f.read())
 
+
+# Load paths of images 
+output_dir = 'bird_only_images'
+input_subdir = '2023-05-28'
+output_fullpath = os.path.join(output_dir, input_subdir)
+if not os.path.exists(output_fullpath):
+    os.makedirs(output_fullpath)
+path_glob = f'E:/birbcam/{input_subdir}/*.jpg'
+paths = glob.glob(path_glob)
+print('----')
+if not os.path.exists('processed_paths.txt'):
+    processed = set()
+else:
+    with open('processed_paths.txt', 'r', encoding='utf-8') as f:
+        processed = set(f.read().splitlines())
+if not os.path.exists('processed_bad_paths.txt'):
+    bad_paths = set()
+else:
+    with open('processed_bad_paths.txt', 'r', encoding='utf-8') as f:
+        bad_paths = set(f.read().splitlines())
+
+to_be_processed = len(set(paths) - set(processed))
+if to_be_processed <= 0:
+    print(f'All paths already processed')
+    exit()
+
+print(f'Planning to process {to_be_processed} images from {path_glob}, loading TF...')
+
+## Load TF & Model after, because it takes time
 # os.environ["TFHUB_CACHE_DIR"] = "gs://samop-tf-cache/tfhub-modules-cache"
 import tensorflow_hub as hub
 import tensorflow as tf
@@ -106,24 +135,7 @@ def search_image(img_path):
     return result
 
 
-# camera_img_paths = glob.glob('birb_camera_images/*.jpg')
-output_dir = 'bird_only_images'
-input_subdir = '2023-05-dev'
-output_fullpath = os.path.join(output_dir, input_subdir)
-if not os.path.exists(output_fullpath):
-    os.makedirs(output_fullpath)
-paths = glob.glob(f'E:/birbcam/{input_subdir}/*.jpg')
-print('----')
-if not os.path.exists('processed_paths.txt'):
-    processed = set()
-else:
-    with open('processed_paths.txt', 'r', encoding='utf-8') as f:
-        processed = set(f.read().splitlines())
-if not os.path.exists('processed_bad_paths.txt'):
-    bad_paths = set()
-else:
-    with open('processed_bad_paths.txt', 'r', encoding='utf-8') as f:
-        bad_paths = set(f.read().splitlines())
+## Main run
 
 t_start = time.perf_counter()
 for idx, img_path in enumerate(paths):
