@@ -35,7 +35,7 @@ else:
 
 to_be_processed = len(set(paths) - set(processed))
 if to_be_processed <= 0:
-    print(f'All paths already processed')
+    print(f'All {len(paths)} paths from {path_glob} already processed')
     exit()
 
 print(f'Planning to process {to_be_processed} images from {path_glob}, loading TF...')
