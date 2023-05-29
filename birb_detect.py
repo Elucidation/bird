@@ -19,7 +19,7 @@ input_subdir = '2023-05-28'
 output_fullpath = os.path.join(output_dir, input_subdir)
 if not os.path.exists(output_fullpath):
     os.makedirs(output_fullpath)
-path_glob = f'E:/birbcam/{input_subdir}/*.jpg'
+path_glob = f'E:/birbcam/{input_subdir}/*[0-9].jpg'
 paths = glob.glob(path_glob)
 print('----')
 if not os.path.exists('processed_paths.txt'):
