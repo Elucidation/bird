@@ -15,12 +15,12 @@ with open('coco_labels.json', 'r', encoding='utf8') as f:
 
 # Load paths of images 
 output_dir = 'bird_only_images'
-input_subdir = '2023-05-28'
+input_subdir = '2023-05-30'
 output_fullpath = os.path.join(output_dir, input_subdir)
 if not os.path.exists(output_fullpath):
     os.makedirs(output_fullpath)
 path_glob = f'E:/birbcam/{input_subdir}/*[0-9].jpg'
-paths = glob.glob(path_glob)
+paths = sorted(glob.glob(path_glob))
 print('----')
 if not os.path.exists('processed_paths.txt'):
     processed = set()
